@@ -41,6 +41,7 @@ prep-esp32:
 	arduino-cli lib install "Adafruit NeoPixel"
 	arduino-cli lib install "XPowersLib"
 	arduino-cli lib install "Crypto"
+	arduino-cli lib install "TinyGPSPlus"
 
 prep-samd:
 	arduino-cli core update-index --config-file arduino-cli.yaml

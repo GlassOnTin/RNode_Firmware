@@ -15,6 +15,10 @@
 
 #include "Config.h"
 
+#if HAS_GPS == true
+  #include "GPS.h"
+#endif
+
 #if HAS_EEPROM
     #include <EEPROM.h>
 #elif PLATFORM == PLATFORM_NRF52
@@ -882,6 +886,37 @@ void kiss_indicate_stat_snr() {
 	escaped_serial_write(last_snr_raw);
 	serial_write(FEND);
 }
+
+#if HAS_GPS == true
+void kiss_indicate_stat_gps() {
+  // Report GPS data as a KISS frame:
+  // [fix(1)] [sats(1)] [lat(4)] [lon(4)] [alt(4)] [speed(4)] [hdop(4)]
+  // All floats are IEEE 754 single-precision, big-endian
+  serial_write(FEND);
+  serial_write(CMD_STAT_GPS);
+  escaped_serial_write(gps_has_fix ? 0x01 : 0x00);
+  escaped_serial_write(gps_sats);
+
+  union { float f; uint8_t b[4]; } u;
+
+  u.f = (float)gps_lat;
+  for (int i = 3; i >= 0; i--) escaped_serial_write(u.b[i]);
+
+  u.f = (float)gps_lon;
+  for (int i = 3; i >= 0; i--) escaped_serial_write(u.b[i]);
+
+  u.f = (float)gps_alt;
+  for (int i = 3; i >= 0; i--) escaped_serial_write(u.b[i]);
+
+  u.f = (float)gps_speed;
+  for (int i = 3; i >= 0; i--) escaped_serial_write(u.b[i]);
+
+  u.f = (float)gps_hdop;
+  for (int i = 3; i >= 0; i--) escaped_serial_write(u.b[i]);
+
+  serial_write(FEND);
+}
+#endif
 
 void kiss_indicate_radio_lock() {
 	serial_write(FEND);
