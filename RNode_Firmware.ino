@@ -265,6 +265,10 @@ void setup() {
       bt_init_ran = true;
     #endif
 
+    #if HAS_GPS == true
+      gps_setup();
+    #endif
+
     if (console_active) {
       #if HAS_CONSOLE
         console_start();
@@ -981,6 +985,10 @@ void serial_callback(uint8_t sbyte) {
       kiss_indicate_stat_tx();
     } else if (command == CMD_STAT_RSSI) {
       kiss_indicate_stat_rssi();
+    #if HAS_GPS == true
+    } else if (command == CMD_STAT_GPS) {
+      kiss_indicate_stat_gps();
+    #endif
     } else if (command == CMD_RADIO_LOCK) {
       update_radio_lock();
       kiss_indicate_radio_lock();
@@ -1729,6 +1737,10 @@ void loop() {
 
   #if HAS_PMU
     if (pmu_ready) update_pmu();
+  #endif
+
+  #if HAS_GPS == true
+    if (gps_ready) gps_update();
   #endif
 
   #if HAS_BLUETOOTH || HAS_BLE == true

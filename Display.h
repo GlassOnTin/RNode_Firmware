@@ -783,6 +783,23 @@ void draw_stat_area() {
     if (radio_online) {
       draw_waterfall(27, 4);
     }
+
+    #if HAS_GPS == true
+      stat_area.setFont(SMALL_FONT);
+      stat_area.setTextSize(1);
+      stat_area.setTextWrap(false);
+      if (gps_has_fix) {
+        stat_area.setTextColor(SSD1306_WHITE);
+        stat_area.fillRect(22, 48, 20, 7, SSD1306_BLACK);
+        stat_area.setCursor(22, 54);
+        stat_area.printf("%ds", gps_sats);
+      } else if (gps_ready) {
+        stat_area.setTextColor(SSD1306_WHITE);
+        stat_area.fillRect(22, 48, 20, 7, SSD1306_BLACK);
+        stat_area.setCursor(22, 54);
+        stat_area.print("gps");
+      }
+    #endif
   }
 }
 
