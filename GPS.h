@@ -35,6 +35,10 @@ double gps_speed = 0.0;
 double gps_hdop = 0.0;
 uint32_t gps_last_update = 0;
 
+#define GPS_REPORT_INTERVAL 5000
+uint32_t gps_last_report = 0;
+void kiss_indicate_stat_gps();
+
 void gps_power_on() {
   #if defined(PIN_GPS_EN)
     pinMode(PIN_GPS_EN, OUTPUT);
@@ -108,6 +112,12 @@ void gps_update() {
   // Mark fix as stale after 10 seconds without update
   if (gps_has_fix && (millis() - gps_last_update > 10000)) {
     gps_has_fix = false;
+  }
+
+  // Periodically push GPS telemetry to host
+  if (millis() - gps_last_report >= GPS_REPORT_INTERVAL) {
+    gps_last_report = millis();
+    kiss_indicate_stat_gps();
   }
 }
 
