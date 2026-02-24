@@ -80,6 +80,15 @@ void gps_setup() {
   // PIN_GPS_RX (39) = ESP32 receives FROM GPS module
   // PIN_GPS_TX (38) = ESP32 transmits TO GPS module
   gps_serial.begin(GPS_BAUD_RATE, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
+  delay(250);
+
+  // L76K init: enable GPS+GLONASS+BeiDou
+  gps_serial.print("$PCAS04,7*1E\r\n");
+  delay(250);
+  // Output GGA and RMC only
+  gps_serial.print("$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0*02\r\n");
+  delay(250);
+
   gps_ready = true;
 }
 
