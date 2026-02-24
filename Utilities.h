@@ -914,6 +914,43 @@ void kiss_indicate_stat_gps() {
   u.f = (float)gps_hdop;
   for (int i = 3; i >= 0; i--) escaped_serial_write(u.b[i]);
 
+  // Diagnostic counters from TinyGPS++ (uint32 big-endian each)
+  uint32_t val;
+
+  val = gps_parser.charsProcessed();
+  escaped_serial_write((val >> 24) & 0xFF);
+  escaped_serial_write((val >> 16) & 0xFF);
+  escaped_serial_write((val >> 8) & 0xFF);
+  escaped_serial_write(val & 0xFF);
+
+  val = gps_parser.passedChecksum();
+  escaped_serial_write((val >> 24) & 0xFF);
+  escaped_serial_write((val >> 16) & 0xFF);
+  escaped_serial_write((val >> 8) & 0xFF);
+  escaped_serial_write(val & 0xFF);
+
+  val = gps_parser.failedChecksum();
+  escaped_serial_write((val >> 24) & 0xFF);
+  escaped_serial_write((val >> 16) & 0xFF);
+  escaped_serial_write((val >> 8) & 0xFF);
+  escaped_serial_write(val & 0xFF);
+
+  val = gps_parser.sentencesWithFix();
+  escaped_serial_write((val >> 24) & 0xFF);
+  escaped_serial_write((val >> 16) & 0xFF);
+  escaped_serial_write((val >> 8) & 0xFF);
+  escaped_serial_write(val & 0xFF);
+
+  serial_write(FEND);
+}
+
+void kiss_indicate_gps_nmea() {
+  // Forward raw GGA sentence as a KISS frame for diagnostics
+  serial_write(FEND);
+  serial_write(CMD_GPS_NMEA);
+  for (uint8_t i = 0; i < nmea_gga_len && i < NMEA_BUF_SIZE; i++) {
+    escaped_serial_write((uint8_t)nmea_gga_buf[i]);
+  }
   serial_write(FEND);
 }
 #endif
