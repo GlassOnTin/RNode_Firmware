@@ -50,7 +50,10 @@ void gps_power_on() {
   #endif
 
   #if defined(PIN_GPS_RST)
+    // L76K reset: active LOW for >100ms triggers reset
     pinMode(PIN_GPS_RST, OUTPUT);
+    digitalWrite(PIN_GPS_RST, LOW);
+    delay(200);
     digitalWrite(PIN_GPS_RST, HIGH);
   #endif
 
@@ -72,8 +75,11 @@ void gps_power_off() {
 
 void gps_setup() {
   gps_power_on();
-  delay(100);
-  gps_serial.begin(GPS_BAUD_RATE, SERIAL_8N1, PIN_GPS_TX, PIN_GPS_RX);
+  delay(1000);  // Allow L76K time to boot after reset
+  // PIN_GPS_TX/RX named from ESP32 perspective:
+  // PIN_GPS_RX (39) = ESP32 receives FROM GPS module
+  // PIN_GPS_TX (38) = ESP32 transmits TO GPS module
+  gps_serial.begin(GPS_BAUD_RATE, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
   gps_ready = true;
 }
 
