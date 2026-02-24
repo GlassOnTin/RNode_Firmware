@@ -32,6 +32,13 @@ uint8_t nmea_gga_len = 0;
 bool nmea_gga_ready = false;
 bool nmea_is_gga = false;
 
+// Ring buffer for all NMEA sentences (diagnostic dump)
+#define NMEA_RING_SLOTS 16
+char nmea_ring[NMEA_RING_SLOTS][NMEA_BUF_SIZE];
+uint8_t nmea_ring_len[NMEA_RING_SLOTS];
+uint8_t nmea_ring_head = 0;   // next write slot
+uint8_t nmea_ring_count = 0;  // sentences since last report
+
 bool gps_ready = false;
 bool gps_has_fix = false;
 uint8_t gps_sats = 0;
@@ -90,11 +97,20 @@ void gps_setup() {
   gps_serial.begin(GPS_BAUD_RATE, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
   delay(250);
 
-  // L76K init: enable GPS+GLONASS+BeiDou
+  // L76K init: force internal antenna (ceramic patch)
+  gps_serial.print("$PCAS15,0*19\r\n");
+  delay(250);
+  // Full cold start — clears ephemeris/almanac, forces fresh search
+  gps_serial.print("$PCAS10,3*1F\r\n");
+  delay(2000);  // Cold start needs extra time
+  // Enable GPS+GLONASS+BeiDou
   gps_serial.print("$PCAS04,7*1E\r\n");
   delay(250);
   // Output GGA, GSA, GSV, and RMC
   gps_serial.print("$PCAS03,1,0,1,1,1,0,0,0,0,0,,,0,0*02\r\n");
+  delay(250);
+  // Set navigation mode to Vehicle (better satellite tracking)
+  gps_serial.print("$PCAS11,3*1E\r\n");
   delay(250);
 
   gps_ready = true;
@@ -107,28 +123,33 @@ void gps_update() {
     char c = gps_serial.read();
     gps_parser.encode(c);
 
-    // Capture raw NMEA sentence for diagnostic forwarding
-    // Use a temp buffer for all sentences, only commit to gga_buf on GGA
+    // Capture raw NMEA sentences for diagnostic forwarding
     {
       static char nmea_tmp[NMEA_BUF_SIZE];
       static uint8_t nmea_tmp_len = 0;
-      static bool nmea_tmp_is_gga = false;
 
       if (c == '$') {
         nmea_tmp_len = 0;
-        nmea_tmp_is_gga = false;
       }
       if (nmea_tmp_len < NMEA_BUF_SIZE - 1) {
         nmea_tmp[nmea_tmp_len++] = c;
       }
-      if (nmea_tmp_len == 6 && nmea_tmp[3] == 'G' && nmea_tmp[4] == 'G' && nmea_tmp[5] == 'A') {
-        nmea_tmp_is_gga = true;
-      }
-      if (c == '\n' && nmea_tmp_is_gga) {
-        memcpy(nmea_gga_buf, nmea_tmp, nmea_tmp_len);
-        nmea_gga_len = nmea_tmp_len;
-        nmea_gga_buf[nmea_gga_len] = '\0';
-        nmea_gga_ready = true;
+      // On sentence end, store in ring buffer and check for GGA
+      if (c == '\n' && nmea_tmp_len > 6) {
+        // Store every sentence in ring buffer
+        uint8_t slot = nmea_ring_head;
+        memcpy(nmea_ring[slot], nmea_tmp, nmea_tmp_len);
+        nmea_ring_len[slot] = nmea_tmp_len;
+        nmea_ring_head = (nmea_ring_head + 1) % NMEA_RING_SLOTS;
+        nmea_ring_count++;
+
+        // Also keep GGA in dedicated buffer for stat report
+        if (nmea_tmp[3] == 'G' && nmea_tmp[4] == 'G' && nmea_tmp[5] == 'A') {
+          memcpy(nmea_gga_buf, nmea_tmp, nmea_tmp_len);
+          nmea_gga_len = nmea_tmp_len;
+          nmea_gga_buf[nmea_gga_len] = '\0';
+          nmea_gga_ready = true;
+        }
       }
     }
   }
@@ -167,9 +188,20 @@ void gps_update() {
   if (millis() - gps_last_report >= GPS_REPORT_INTERVAL) {
     gps_last_report = millis();
     kiss_indicate_stat_gps();
-    if (nmea_gga_ready) {
-      kiss_indicate_gps_nmea();
-      nmea_gga_ready = false;
+
+    // Dump all buffered NMEA sentences for diagnostics
+    if (nmea_ring_count > 0) {
+      uint8_t count = nmea_ring_count < NMEA_RING_SLOTS ? nmea_ring_count : NMEA_RING_SLOTS;
+      uint8_t start = (nmea_ring_head + NMEA_RING_SLOTS - count) % NMEA_RING_SLOTS;
+      for (uint8_t i = 0; i < count; i++) {
+        uint8_t slot = (start + i) % NMEA_RING_SLOTS;
+        // Send each sentence as a separate NMEA KISS frame
+        nmea_gga_len = nmea_ring_len[slot];
+        memcpy(nmea_gga_buf, nmea_ring[slot], nmea_gga_len);
+        nmea_gga_buf[nmea_gga_len] = '\0';
+        kiss_indicate_gps_nmea();
+      }
+      nmea_ring_count = 0;
     }
   }
 }
