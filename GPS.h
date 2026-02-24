@@ -25,6 +25,13 @@
 TinyGPSPlus gps_parser;
 HardwareSerial gps_serial(1);
 
+// Raw NMEA capture for diagnostic forwarding
+#define NMEA_BUF_SIZE 128
+char nmea_gga_buf[NMEA_BUF_SIZE];
+uint8_t nmea_gga_len = 0;
+bool nmea_gga_ready = false;
+bool nmea_is_gga = false;
+
 bool gps_ready = false;
 bool gps_has_fix = false;
 uint8_t gps_sats = 0;
@@ -38,6 +45,7 @@ uint32_t gps_last_update = 0;
 #define GPS_REPORT_INTERVAL 5000
 uint32_t gps_last_report = 0;
 void kiss_indicate_stat_gps();
+void kiss_indicate_gps_nmea();
 
 void gps_power_on() {
   #if defined(PIN_GPS_EN)
@@ -85,8 +93,8 @@ void gps_setup() {
   // L76K init: enable GPS+GLONASS+BeiDou
   gps_serial.print("$PCAS04,7*1E\r\n");
   delay(250);
-  // Output GGA and RMC only
-  gps_serial.print("$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0*02\r\n");
+  // Output GGA, GSA, GSV, and RMC
+  gps_serial.print("$PCAS03,1,0,1,1,1,0,0,0,0,0,,,0,0*02\r\n");
   delay(250);
 
   gps_ready = true;
@@ -96,7 +104,33 @@ void gps_update() {
   if (!gps_ready) return;
 
   while (gps_serial.available() > 0) {
-    gps_parser.encode(gps_serial.read());
+    char c = gps_serial.read();
+    gps_parser.encode(c);
+
+    // Capture raw NMEA sentence for diagnostic forwarding
+    // Use a temp buffer for all sentences, only commit to gga_buf on GGA
+    {
+      static char nmea_tmp[NMEA_BUF_SIZE];
+      static uint8_t nmea_tmp_len = 0;
+      static bool nmea_tmp_is_gga = false;
+
+      if (c == '$') {
+        nmea_tmp_len = 0;
+        nmea_tmp_is_gga = false;
+      }
+      if (nmea_tmp_len < NMEA_BUF_SIZE - 1) {
+        nmea_tmp[nmea_tmp_len++] = c;
+      }
+      if (nmea_tmp_len == 6 && nmea_tmp[3] == 'G' && nmea_tmp[4] == 'G' && nmea_tmp[5] == 'A') {
+        nmea_tmp_is_gga = true;
+      }
+      if (c == '\n' && nmea_tmp_is_gga) {
+        memcpy(nmea_gga_buf, nmea_tmp, nmea_tmp_len);
+        nmea_gga_len = nmea_tmp_len;
+        nmea_gga_buf[nmea_gga_len] = '\0';
+        nmea_gga_ready = true;
+      }
+    }
   }
 
   if (gps_parser.location.isUpdated()) {
@@ -133,6 +167,10 @@ void gps_update() {
   if (millis() - gps_last_report >= GPS_REPORT_INTERVAL) {
     gps_last_report = millis();
     kiss_indicate_stat_gps();
+    if (nmea_gga_ready) {
+      kiss_indicate_gps_nmea();
+      nmea_gga_ready = false;
+    }
   }
 }
 
