@@ -827,7 +827,11 @@ void update_stat_area() {
 }
 
 #define START_PAGE 0
-const uint8_t pages = 3;
+#if HAS_GPS == true
+  const uint8_t pages = 4;
+#else
+  const uint8_t pages = 3;
+#endif
 uint8_t disp_page = START_PAGE;
 extern char bt_devname[11];
 extern char bt_dh[16];
@@ -999,6 +1003,35 @@ void draw_disp_area() {
             disp_area.drawLine(27, 37+19, 28, 37+19, SSD1306_BLACK);
             disp_area.drawLine(27, 37+20, 28, 37+20, SSD1306_BLACK);
           }
+          #if HAS_GPS == true
+            else if (disp_page == 3) {
+              disp_area.fillRect(0, 37, disp_area.width(), 27, SSD1306_BLACK);
+              disp_area.setFont(SMALL_FONT);
+              disp_area.setTextSize(1);
+              disp_area.setTextWrap(false);
+              disp_area.setTextColor(SSD1306_WHITE);
+              if (gps_has_fix) {
+                disp_area.setCursor(2, 37+7);
+                disp_area.printf("%.4f", gps_lat);
+                disp_area.setCursor(2, 37+15);
+                disp_area.printf("%.4f", gps_lon);
+                disp_area.setCursor(2, 37+23);
+                if (beacon_mode_active) {
+                  disp_area.printf("%dsat BCN", gps_sats);
+                } else {
+                  disp_area.printf("%dsat %.0fm", gps_sats, gps_alt);
+                }
+              } else if (gps_ready) {
+                disp_area.setCursor(2, 37+7);
+                disp_area.print("GPS searching");
+                disp_area.setCursor(2, 37+15);
+                disp_area.printf("%d sats", gps_sats);
+              } else {
+                disp_area.setCursor(2, 37+7);
+                disp_area.print("GPS starting");
+              }
+            }
+          #endif
         }
       }
     } else {
