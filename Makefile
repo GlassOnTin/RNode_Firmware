@@ -215,6 +215,11 @@ upload-heltec32_v4:
 	@sleep 3
 	python ./Release/esptool/esptool.py --chip esp32-s3 --port /dev/ttyACM0 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size 4MB 0x210000 ./Release/console_image.bin
 
+deploy-heltec32_v4: firmware-heltec32_v4
+	arduino-cli upload -p /dev/ttyACM0 --fqbn "esp32:esp32:esp32s3:CDCOnBoot=cdc"
+	@sleep 1
+	rnodeconf /dev/ttyACM0 --firmware-hash $$(./partition_hashes ./build/esp32.esp32.esp32s3/RNode_Firmware.ino.bin)
+
 upload-tdeck:
 	arduino-cli upload -p /dev/ttyACM0 --fqbn esp32:esp32:esp32s3
 	@sleep 1
