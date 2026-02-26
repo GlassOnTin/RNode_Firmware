@@ -828,7 +828,7 @@ void update_stat_area() {
 
 #define START_PAGE 0
 #if HAS_GPS == true
-  const uint8_t pages = 4;
+  const uint8_t pages = 5;  // 2 diagnostics + 3 GPS
 #else
   const uint8_t pages = 3;
 #endif
@@ -856,8 +856,8 @@ void draw_disp_area() {
         }
 
         #if HAS_GPS == true
-        if (disp_page == 3) {
-          // GPS page
+        if (disp_page >= 2) {
+          // GPS page (pages 2-4, diagnostics on pages 0-1)
           disp_area.fillRect(0,8,disp_area.width(),56, SSD1306_BLACK);
           disp_area.setFont(SMALL_FONT); disp_area.setTextWrap(false); disp_area.setTextColor(SSD1306_WHITE); disp_area.setTextSize(1);
 
