@@ -17,6 +17,8 @@
 
 #if HAS_GPS == true
   #include "GPS.h"
+  #include "Beacon.h"
+  #include "BeaconCrypto.h"
 #endif
 
 #if HAS_EEPROM
@@ -940,6 +942,12 @@ void kiss_indicate_stat_gps() {
   escaped_serial_write((val >> 16) & 0xFF);
   escaped_serial_write((val >> 8) & 0xFF);
   escaped_serial_write(val & 0xFF);
+
+  // Beacon diagnostic: gate, sf, cr, txp
+  escaped_serial_write(beacon_gate);
+  escaped_serial_write((uint8_t)lora_sf);
+  escaped_serial_write((uint8_t)lora_cr);
+  escaped_serial_write((uint8_t)lora_txp);
 
   serial_write(FEND);
 }

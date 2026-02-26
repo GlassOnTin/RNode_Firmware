@@ -267,6 +267,16 @@ void setup() {
 
     #if HAS_GPS == true
       gps_setup();
+      // Load beacon encryption config from EEPROM (config region)
+      if (EEPROM.read(config_addr(ADDR_BCN_OK)) == CONF_OK_BYTE) {
+          for (int i = 0; i < 32; i++)
+              collector_pub_key[i] = EEPROM.read(config_addr(ADDR_BCN_KEY + i));
+          for (int i = 0; i < 16; i++)
+              collector_identity_hash[i] = EEPROM.read(config_addr(ADDR_BCN_IHASH + i));
+          for (int i = 0; i < 16; i++)
+              collector_dest_hash[i] = EEPROM.read(config_addr(ADDR_BCN_DHASH + i));
+          beacon_crypto_configured = true;
+      }
     #endif
 
     if (console_active) {
@@ -766,6 +776,22 @@ void transmit(uint16_t size) {
   } else { kiss_indicate_error(ERROR_TXFAILED); led_indicate_error(5); }
 }
 
+// Transmit raw RNS packet without the 1-byte RNode LoRa header.
+// Used by beacon mode so the receiving RNode passes the packet
+// directly to Reticulum without a spurious header byte.
+void beacon_transmit(uint16_t size) {
+  if (radio_online) {
+    LoRa->beginPacket();
+    for (uint16_t i = 0; i < size; i++) {
+      LoRa->write(tbuf[i]);
+    }
+    if (!LoRa->endPacket()) {
+      led_indicate_error(5);
+    }
+    add_airtime(size);
+  }
+}
+
 void serial_callback(uint8_t sbyte) {
   if (IN_FRAME && sbyte == FEND && command == CMD_DATA) {
     IN_FRAME = false;
@@ -794,6 +820,9 @@ void serial_callback(uint8_t sbyte) {
     // Have a look at the command byte first
     if (frame_len == 0 && command == CMD_UNKNOWN) {
         command = sbyte;
+        #if HAS_GPS == true
+          beacon_check_host_activity();
+        #endif
     } else if (command == CMD_DATA) {
         if (bt_state != BT_STATE_CONNECTED) {
           cable_state = CABLE_STATE_CONNECTED;
@@ -1225,6 +1254,34 @@ void serial_callback(uint8_t sbyte) {
         }
 
         if (frame_len == 4) { for (uint8_t i = 0; i<4; i++) { eeprom_update(config_addr(ADDR_CONF_NM+i), cmdbuf[i]); } }
+      #endif
+    } else if (command == CMD_BCN_KEY) {
+      #if HAS_GPS == true
+        if (sbyte == FESC) { ESCAPE = true; }
+        else {
+          if (ESCAPE) {
+            if (sbyte == TFEND) sbyte = FEND;
+            if (sbyte == TFESC) sbyte = FESC;
+            ESCAPE = false;
+          }
+          if (frame_len < CMD_L) cmdbuf[frame_len++] = sbyte;
+        }
+        // 64 bytes: 32B X25519 pub key + 16B identity hash + 16B dest hash
+        if (frame_len == 64) {
+          for (int i = 0; i < 32; i++)
+            eeprom_update(config_addr(ADDR_BCN_KEY + i), cmdbuf[i]);
+          for (int i = 0; i < 16; i++)
+            eeprom_update(config_addr(ADDR_BCN_IHASH + i), cmdbuf[32 + i]);
+          for (int i = 0; i < 16; i++)
+            eeprom_update(config_addr(ADDR_BCN_DHASH + i), cmdbuf[48 + i]);
+          eeprom_update(config_addr(ADDR_BCN_OK), CONF_OK_BYTE);
+          // Load into RAM immediately
+          memcpy(collector_pub_key, cmdbuf, 32);
+          memcpy(collector_identity_hash, cmdbuf + 32, 16);
+          memcpy(collector_dest_hash, cmdbuf + 48, 16);
+          beacon_crypto_configured = true;
+          kiss_indicate_ready();
+        }
       #endif
     } else if (command == CMD_BT_CTRL) {
       #if HAS_BLUETOOTH || HAS_BLE
@@ -1740,7 +1797,10 @@ void loop() {
   #endif
 
   #if HAS_GPS == true
-    if (gps_ready) gps_update();
+    if (gps_ready) {
+      gps_update();
+      beacon_update();
+    }
   #endif
 
   #if HAS_BLUETOOTH || HAS_BLE == true

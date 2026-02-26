@@ -65,7 +65,9 @@ void gps_power_on() {
   #endif
 
   #if defined(PIN_GPS_RST)
-    // L76K reset: active LOW for >100ms triggers reset
+    // L76K reset: active LOW for >100ms triggers full reset.
+    // This clears backup RAM (ephemeris/almanac) forcing a cold start,
+    // but is needed to reliably initialize the RF front-end after power-on.
     pinMode(PIN_GPS_RST, OUTPUT);
     digitalWrite(PIN_GPS_RST, LOW);
     delay(200);
@@ -100,9 +102,9 @@ void gps_setup() {
   // L76K init: force internal antenna (ceramic patch)
   gps_serial.print("$PCAS15,0*19\r\n");
   delay(250);
-  // Full cold start — clears ephemeris/almanac, forces fresh search
-  gps_serial.print("$PCAS10,3*1F\r\n");
-  delay(2000);  // Cold start needs extra time
+  // Hot start — use cached ephemeris/almanac if available in L76K backup RAM
+  gps_serial.print("$PCAS10,0*1C\r\n");
+  delay(500);
   // Enable GPS+GLONASS+BeiDou
   gps_serial.print("$PCAS04,7*1E\r\n");
   delay(250);
