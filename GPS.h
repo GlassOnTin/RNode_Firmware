@@ -65,12 +65,9 @@ void gps_power_on() {
   #endif
 
   #if defined(PIN_GPS_RST)
-    // L76K reset: active LOW for >100ms triggers full reset.
-    // This clears backup RAM (ephemeris/almanac) forcing a cold start,
-    // but is needed to reliably initialize the RF front-end after power-on.
+    // Keep reset HIGH (inactive) to preserve backup RAM (ephemeris/almanac).
+    // This allows warm/hot starts with much faster time-to-fix.
     pinMode(PIN_GPS_RST, OUTPUT);
-    digitalWrite(PIN_GPS_RST, LOW);
-    delay(200);
     digitalWrite(PIN_GPS_RST, HIGH);
   #endif
 
@@ -111,8 +108,8 @@ void gps_setup() {
   // Output GGA, GSA, GSV, and RMC
   gps_serial.print("$PCAS03,1,0,1,1,1,0,0,0,0,0,,,0,0*02\r\n");
   delay(250);
-  // Set navigation mode to Vehicle (better satellite tracking)
-  gps_serial.print("$PCAS11,3*1E\r\n");
+  // Set navigation mode to Portable (general purpose, works stationary and moving)
+  gps_serial.print("$PCAS11,0*1D\r\n");
   delay(250);
 
   gps_ready = true;
