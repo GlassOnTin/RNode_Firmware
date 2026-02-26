@@ -17,8 +17,8 @@
 
 #if HAS_GPS == true
   #include "GPS.h"
-  #include "Beacon.h"
   #include "BeaconCrypto.h"
+  #include "Beacon.h"
 #endif
 
 #if HAS_EEPROM
