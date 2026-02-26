@@ -850,6 +850,47 @@ void draw_disp_area() {
   } else {
     if (!disp_ext_fb or bt_ssp_pin != 0) {
       if (radio_online && display_diagnostics) {
+        if (millis()-last_page_flip >= page_interval) {
+          disp_page = (++disp_page%pages);
+          last_page_flip = millis();
+        }
+
+        #if HAS_GPS == true
+        if (disp_page == 3) {
+          // GPS page
+          disp_area.fillRect(0,8,disp_area.width(),56, SSD1306_BLACK);
+          disp_area.setFont(SMALL_FONT); disp_area.setTextWrap(false); disp_area.setTextColor(SSD1306_WHITE); disp_area.setTextSize(1);
+
+          disp_area.setCursor(2, 13);
+          disp_area.print("On");
+          disp_area.setCursor(14, 13);
+          disp_area.print("@");
+          disp_area.setCursor(21, 13);
+          disp_area.printf("%.1fKbps", (float)lora_bitrate/1000.0);
+
+          if (gps_has_fix) {
+            disp_area.setCursor(2, 27);
+            disp_area.printf("%.5f", gps_lat);
+            disp_area.setCursor(2, 39);
+            disp_area.printf("%.5f", gps_lon);
+            disp_area.setCursor(2, 51);
+            if (beacon_mode_active) {
+              disp_area.printf("%dsat %.0fm BCN", gps_sats, gps_alt);
+            } else {
+              disp_area.printf("%dsat %.0fm", gps_sats, gps_alt);
+            }
+          } else if (gps_ready) {
+            disp_area.setCursor(2, 27);
+            disp_area.print("GPS searching");
+            disp_area.setCursor(2, 39);
+            disp_area.printf("%d sats", gps_sats);
+          } else {
+            disp_area.setCursor(2, 27);
+            disp_area.print("GPS starting");
+          }
+        } else {
+        #endif
+        // Diagnostics page (original)
         disp_area.fillRect(0,8,disp_area.width(),37, SSD1306_BLACK); disp_area.fillRect(0,37,disp_area.width(),27, SSD1306_WHITE);
         disp_area.setFont(SMALL_FONT); disp_area.setTextWrap(false); disp_area.setTextColor(SSD1306_WHITE); disp_area.setTextSize(1);
 
@@ -863,7 +904,7 @@ void draw_disp_area() {
         //disp_area.setCursor(31, 23-1);
         disp_area.setCursor(2, 23-1);
         disp_area.print("Airtime:");
-        
+
         disp_area.setCursor(11, 33-1);
         if (total_channel_util < 0.099) {
           //disp_area.printf("%.1f%%", total_channel_util*100.0);
@@ -890,7 +931,7 @@ void draw_disp_area() {
         disp_area.print("Channel");
         disp_area.setCursor(38, 46);
         disp_area.print("Load:");
-        
+
         disp_area.setCursor(11, 57);
         if (total_channel_util < 0.099) {
           //disp_area.printf("%.1f%%", airtime*100.0);
@@ -910,6 +951,9 @@ void draw_disp_area() {
           disp_area.printf("%.0f%%", longterm_channel_util*100.0);
         }
         disp_area.drawBitmap(32+2, 50, bm_hg_high, 5, 9, SSD1306_BLACK, SSD1306_WHITE);
+        #if HAS_GPS == true
+        }
+        #endif
 
       } else {
         if (device_signatures_ok()) { disp_area.drawBitmap(0, 0, bm_def_lc, disp_area.width(), 23, SSD1306_WHITE, SSD1306_BLACK); }
@@ -1003,35 +1047,6 @@ void draw_disp_area() {
             disp_area.drawLine(27, 37+19, 28, 37+19, SSD1306_BLACK);
             disp_area.drawLine(27, 37+20, 28, 37+20, SSD1306_BLACK);
           }
-          #if HAS_GPS == true
-            else if (disp_page == 3) {
-              disp_area.fillRect(0, 37, disp_area.width(), 27, SSD1306_BLACK);
-              disp_area.setFont(SMALL_FONT);
-              disp_area.setTextSize(1);
-              disp_area.setTextWrap(false);
-              disp_area.setTextColor(SSD1306_WHITE);
-              if (gps_has_fix) {
-                disp_area.setCursor(2, 37+7);
-                disp_area.printf("%.4f", gps_lat);
-                disp_area.setCursor(2, 37+15);
-                disp_area.printf("%.4f", gps_lon);
-                disp_area.setCursor(2, 37+23);
-                if (beacon_mode_active) {
-                  disp_area.printf("%dsat BCN", gps_sats);
-                } else {
-                  disp_area.printf("%dsat %.0fm", gps_sats, gps_alt);
-                }
-              } else if (gps_ready) {
-                disp_area.setCursor(2, 37+7);
-                disp_area.print("GPS searching");
-                disp_area.setCursor(2, 37+15);
-                disp_area.printf("%d sats", gps_sats);
-              } else {
-                disp_area.setCursor(2, 37+7);
-                disp_area.print("GPS starting");
-              }
-            }
-          #endif
         }
       }
     } else {
